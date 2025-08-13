@@ -99,16 +99,25 @@ feedback_messages = {
     "safe": "✅ This prompt appears safe and respectful.",
 }
 
+# Improvement suggestions mapping (per category)
+improvement_suggestions = {
+    "biased": "Consider rephrasing to be more inclusive and avoid language that could perpetuate stereotypes. Use neutral terms and ensure equal representation across different groups.",
+    "asks for personal information": "Modify the prompt to avoid requesting sensitive personal information. Focus on public information or hypothetical scenarios instead.",
+    "ambiguous": "Add more specific details and context to make your request clearer. Define key terms and provide examples of what you're looking for.",
+    "toxic or harmful": "Rewrite the prompt to focus on constructive, educational, or helpful content. Avoid language that could lead to harmful outputs.",
+    "safe": "Your prompt looks good! Consider adding more specific context if you want more targeted responses.",
+}
+
 # Audit function
 def audit_prompt(prompt):
     if not prompt or not prompt.strip():
-        return "", {}, "Please enter a prompt to audit."
+        return {}, "Please enter a prompt to audit.", "Please provide a prompt to analyze for improvement suggestions."
 
     if classifier is None:
         return (
-            "Error",
             {},
             "Model failed to load. In Hugging Face Spaces, set env var 'MODEL_NAME' to a lighter model like 'valhalla/distilbart-mnli-12-1', or use a larger hardware profile.",
+            "Unable to provide suggestions due to model loading error.",
         )
 
     try:
@@ -120,9 +129,9 @@ def audit_prompt(prompt):
         )
     except Exception as e:  # pragma: no cover
         return (
-            "Error",
             {},
             f"Classification failed: {e}",
+            "Unable to provide suggestions due to classification error.",
         )
 
     # Build mapping of candidate label -> score
@@ -137,6 +146,8 @@ def audit_prompt(prompt):
 
     # Collect feedback for non-safe labels above threshold
     scored_feedback = []
+    suggestions = []
+    
     def severity_from_score(score: float) -> str:
         if score >= 0.75:
             return "high"
@@ -144,22 +155,37 @@ def audit_prompt(prompt):
             return "medium"
         return "low"
 
+    # Check for risks and generate feedback and suggestions
+    risks_found = []
     for group, score in group_scores.items():
         if group != "safe" and score >= RISK_THRESHOLD:
             severity = severity_from_score(score)
             scored_feedback.append(
                 f"{feedback_messages[group]} (severity: {severity}, confidence: {score:.2f})"
             )
+            risks_found.append(group)
+
+    # Generate improvement suggestions based on detected risks
+    if risks_found:
+        # Sort risks by score to prioritize highest risk suggestions
+        risks_by_score = [(group, group_scores[group]) for group in risks_found]
+        risks_by_score.sort(key=lambda x: x[1], reverse=True)
+        
+        # Generate suggestions for the top 2-3 risks to avoid overwhelming the user
+        for group, score in risks_by_score[:3]:
+            suggestions.append(f"• {improvement_suggestions[group]}")
+        
+        suggestions_text = "\n".join(suggestions)
+    else:
+        # If no risks found, provide general improvement suggestion
+        suggestions_text = improvement_suggestions["safe"]
 
     final_verdict = (
         "✅ No major issues found." if not scored_feedback else "\n".join(scored_feedback)
     )
 
-    # First output should be a single label string for gr.Label
-    top_label = max(group_scores, key=group_scores.get) if group_scores else "safe"
-
-    # Second output can be a dict mapping labels to scores for gr.Label
-    return top_label, group_scores, final_verdict
+    # Return scores dict and suggestion text instead of top label
+    return group_scores, final_verdict, suggestions_text
 
 # Build UI
 def build_ui():
@@ -169,11 +195,11 @@ def build_ui():
         prompt_input = gr.Textbox(lines=3, placeholder="Paste your prompt here...", label="Prompt")
         audit_btn = gr.Button("Run Audit")
         
-        label_output = gr.Label(label="Top Risk")
         score_output = gr.Label(label="Category Scores")
         feedback = gr.Textbox(label="RAIC Feedback", interactive=False)
+        suggestions = gr.Textbox(label="💡 Suggested Improvements", interactive=False, lines=4)
         
-        audit_btn.click(fn=audit_prompt, inputs=prompt_input, outputs=[label_output, score_output, feedback])
+        audit_btn.click(fn=audit_prompt, inputs=prompt_input, outputs=[score_output, feedback, suggestions])
     
     return demo
 
