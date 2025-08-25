@@ -102,8 +102,141 @@ HYPOTHESIS_TEMPLATE = os.getenv(
     "The prompt is {}.",
 )
 
-# Risk threshold (per-category after aggregation) for showing feedback
-RISK_THRESHOLD = float(os.getenv("RISK_THRESHOLD", "0.35"))
+# Enhanced Detection Configuration
+BASE_RISK_THRESHOLD = float(os.getenv("RISK_THRESHOLD", "0.35"))
+
+# Violation importance weights - prioritize what matters most
+VIOLATION_WEIGHTS = {
+    "safety_violation": 2.0,           # Highest priority - physical/psychological harm
+    "privacy_violation": 1.8,          # High priority - data protection critical
+    "accountability_violation": 1.6,   # High priority - AI misuse prevention
+    "fairness_violation": 1.4,         # Medium-high priority - equity important
+    "transparency_violation": 1.2,     # Medium priority - clarity matters
+    "inclusiveness_violation": 1.3,    # Medium priority - accessibility important
+    "responsible_and_safe": 0.8,       # Lower weight for positive category
+}
+
+# Context-based threshold adjustments
+CONTEXT_MULTIPLIERS = {
+    "educational": 1.4,      # More lenient for learning contexts
+    "research": 1.3,         # Slightly more lenient for research
+    "business": 1.0,         # Standard threshold for business use
+    "public": 0.7,           # More strict for public-facing content
+    "creative": 1.2,         # Moderate leniency for creative writing
+    "testing": 1.5,          # More lenient for red-teaming/testing
+    "default": 1.0           # Standard threshold
+}
+
+# Smart Aggregation Functions
+def smart_aggregate_scores(candidate_scores, synonyms):
+    """
+    Intelligent score aggregation using multiple methods
+    """
+    synonym_scores = [candidate_scores.get(s, 0.0) for s in synonyms]
+    synonym_scores = [s for s in synonym_scores if s > 0]  # Remove zero scores
+    
+    if not synonym_scores:
+        return 0.0
+    
+    # Multiple aggregation methods
+    max_score = max(synonym_scores)
+    avg_score = sum(synonym_scores) / len(synonym_scores)
+    
+    # Weighted combination: favor max but consider average for stability
+    # If we have multiple high scores, that's more concerning than one outlier
+    confidence_factor = len(synonym_scores) / len(synonyms)  # How many synonyms detected
+    
+    if len(synonym_scores) == 1:
+        # Single detection - use max but reduce confidence
+        return max_score * 0.9
+    elif len(synonym_scores) >= 3:
+        # Multiple detections - high confidence, use weighted average
+        return (max_score * 0.7) + (avg_score * 0.3)
+    else:
+        # Two detections - balanced approach
+        return (max_score * 0.8) + (avg_score * 0.2)
+
+def detect_prompt_context(prompt):
+    """
+    Detect the context/intent of the prompt for dynamic threshold adjustment
+    """
+    prompt_lower = prompt.lower()
+    
+    # Educational context indicators
+    educational_keywords = [
+        "learn", "study", "research", "understand", "explain", "teach", "education",
+        "academic", "homework", "assignment", "thesis", "paper", "course", "class"
+    ]
+    
+    # Creative context indicators  
+    creative_keywords = [
+        "story", "creative", "fiction", "novel", "character", "plot", "narrative",
+        "write a story", "creative writing", "fictional", "imagine", "fantasy"
+    ]
+    
+    # Testing/Research context indicators
+    testing_keywords = [
+        "test", "testing", "red team", "red-team", "evaluate", "assess", "analyze",
+        "security test", "vulnerability", "penetration test", "audit"
+    ]
+    
+    # Business context indicators
+    business_keywords = [
+        "business", "company", "corporate", "professional", "client", "customer",
+        "marketing", "sales", "strategy", "proposal", "meeting", "presentation"
+    ]
+    
+    # Public context indicators
+    public_keywords = [
+        "public", "social media", "post", "tweet", "facebook", "instagram", "blog",
+        "website", "publish", "announcement", "press release", "community"
+    ]
+    
+    # Research context indicators
+    research_keywords = [
+        "research", "study", "investigation", "analysis", "experiment", "survey",
+        "data", "hypothesis", "methodology", "findings", "academic research"
+    ]
+    
+    # Count keyword matches and determine context
+    contexts_scores = {
+        "educational": sum(1 for kw in educational_keywords if kw in prompt_lower),
+        "creative": sum(1 for kw in creative_keywords if kw in prompt_lower),
+        "testing": sum(1 for kw in testing_keywords if kw in prompt_lower),
+        "business": sum(1 for kw in business_keywords if kw in prompt_lower),
+        "public": sum(1 for kw in public_keywords if kw in prompt_lower),
+        "research": sum(1 for kw in research_keywords if kw in prompt_lower),
+    }
+    
+    # Find the context with highest score
+    max_context = max(contexts_scores, key=contexts_scores.get)
+    max_score = contexts_scores[max_context]
+    
+    # Only use context if we have strong indicators (at least 2 matches)
+    if max_score >= 2:
+        return max_context
+    elif max_score == 1:
+        # Weak signal - use default but note the context
+        return "default"
+    else:
+        return "default"
+
+def calculate_dynamic_threshold(base_threshold, context, violation_weight):
+    """
+    Calculate context-aware threshold with violation importance weighting
+    """
+    context_multiplier = CONTEXT_MULTIPLIERS.get(context, 1.0)
+    
+    # Apply context adjustment to base threshold
+    adjusted_threshold = base_threshold * context_multiplier
+    
+    # Further adjust based on violation importance
+    # Higher weight violations get lower thresholds (easier to trigger)
+    weight_adjustment = 2.0 / violation_weight if violation_weight > 0 else 1.0
+    final_threshold = adjusted_threshold * weight_adjustment
+    
+    # Ensure threshold stays within reasonable bounds
+    return max(0.1, min(0.8, final_threshold))
 
 # Enhanced Responsible AI feedback with severity-based messaging
 def get_detailed_feedback(category, severity, confidence):
@@ -239,10 +372,13 @@ def audit_prompt(prompt):
         label: float(score) for label, score in zip(result["labels"], result["scores"])
     }
 
-    # Aggregate scores per category (take max among synonyms)
+    # Detect prompt context for dynamic threshold adjustment
+    detected_context = detect_prompt_context(prompt)
+    
+    # Smart aggregation: Replace simple max with intelligent scoring
     group_scores = {}
     for group, synonyms in GROUP_LABELS.items():
-        group_scores[group] = max(candidate_label_to_score.get(s, 0.0) for s in synonyms)
+        group_scores[group] = smart_aggregate_scores(candidate_label_to_score, synonyms)
 
     # Collect enhanced feedback for non-safe labels above threshold
     suggestions = []
@@ -254,41 +390,81 @@ def audit_prompt(prompt):
             return "medium"
         return "low"
 
-    # Check for risks and generate enhanced feedback and suggestions
+    # Enhanced risk detection with weighted severity and dynamic thresholds
     risks_found = []
     detailed_feedback = []
     
     for group, score in group_scores.items():
-        if group != "responsible_and_safe" and score >= RISK_THRESHOLD:
-            severity = severity_from_score(score)
-            # Use enhanced detailed feedback
-            detailed_message = get_detailed_feedback(group, severity, score)
-            detailed_feedback.append(detailed_message)
-            risks_found.append((group, severity, score))
+        if group != "responsible_and_safe":
+            # Get violation weight and calculate dynamic threshold
+            violation_weight = VIOLATION_WEIGHTS.get(group, 1.0)
+            dynamic_threshold = calculate_dynamic_threshold(
+                BASE_RISK_THRESHOLD, detected_context, violation_weight
+            )
+            
+            # Apply weighted scoring for better prioritization
+            weighted_score = score * violation_weight
+            
+            if score >= dynamic_threshold:
+                severity = severity_from_score(weighted_score)
+                # Use enhanced detailed feedback with context info
+                detailed_message = get_detailed_feedback(group, severity, score)
+                
+                # Add context information to feedback
+                if detected_context != "default":
+                    context_note = f"\n🎯 Context detected: {detected_context.title()} (threshold adjusted accordingly)"
+                    detailed_message += context_note
+                
+                detailed_feedback.append(detailed_message)
+                risks_found.append((group, severity, score, weighted_score, dynamic_threshold))
 
-    # Generate enhanced improvement suggestions based on detected risks
+    # Generate enhanced improvement suggestions based on weighted risks
     detailed_suggestions = []
     if risks_found:
-        # Sort risks by score to prioritize highest risk suggestions
-        risks_by_score = sorted(risks_found, key=lambda x: x[2], reverse=True)
+        # Sort risks by weighted score to prioritize most important violations
+        risks_by_weighted_score = sorted(risks_found, key=lambda x: x[3], reverse=True)
         
-        # Generate detailed suggestions for the top 2-3 risks
-        for group, severity, score in risks_by_score[:3]:
+        # Generate detailed suggestions for the top 2-3 weighted risks
+        for group, severity, score, weighted_score, threshold in risks_by_weighted_score[:3]:
             detailed_suggestion = get_detailed_suggestions(group, severity)
+            
+            # Add scoring details for transparency
+            scoring_info = f"\n📊 **Scoring Details:** Raw: {score:.2f}, Weighted: {weighted_score:.2f}, Threshold: {threshold:.2f}"
+            detailed_suggestion += scoring_info
+            
             detailed_suggestions.append(detailed_suggestion)
         
         suggestions_text = "\n\n".join(detailed_suggestions)
     else:
-        # If no risks found, provide positive reinforcement with tips
+        # If no risks found, provide context-aware positive reinforcement
         safe_score = group_scores.get("responsible_and_safe", 0.0)
+        
+        # Context-specific positive feedback
+        context_praise = ""
+        if detected_context == "educational":
+            context_praise = "\n🎓 **Educational Context Detected** - Great choice for learning-focused content!"
+        elif detected_context == "creative":
+            context_praise = "\n🎨 **Creative Context Detected** - Excellent approach for creative projects!"
+        elif detected_context == "business":
+            context_praise = "\n💼 **Business Context Detected** - Professional and appropriate for business use!"
+        elif detected_context == "research":
+            context_praise = "\n🔬 **Research Context Detected** - Well-structured for research purposes!"
+        elif detected_context == "testing":
+            context_praise = "\n🧪 **Testing Context Detected** - Good approach for security/safety testing!"
+        elif detected_context == "public":
+            context_praise = "\n🌐 **Public Context Detected** - Appropriately crafted for public communication!"
+        
         if safe_score > 0.7:
-            suggestions_text = "🎉 **EXCELLENT PROMPT DESIGN**\nYour prompt demonstrates strong alignment with Responsible AI principles!\n\n💡 **Enhancement Tips:**\n• Consider adding specific context for even more targeted results\n• Test with diverse scenarios to ensure broad applicability\n• Share this as a good example of ethical prompt design"
+            suggestions_text = f"🎉 **EXCELLENT PROMPT DESIGN**\nYour prompt demonstrates strong alignment with Responsible AI principles!{context_praise}\n\n💡 **Enhancement Tips:**\n• Consider adding specific context for even more targeted results\n• Test with diverse scenarios to ensure broad applicability\n• Share this as a good example of ethical prompt design\n\n📊 **Context Analysis:** Detected as '{detected_context}' context"
         else:
-            suggestions_text = "✅ **GOOD PROMPT FOUNDATION**\nNo major RA violations detected, but there's room for improvement!\n\n💡 **Enhancement Suggestions:**\n• Add more specific context about your goals\n• Consider diverse perspectives in your framing\n• Be more explicit about desired outcomes or format"
+            suggestions_text = f"✅ **GOOD PROMPT FOUNDATION**\nNo major RA violations detected, but there's room for improvement!{context_praise}\n\n💡 **Enhancement Suggestions:**\n• Add more specific context about your goals\n• Consider diverse perspectives in your framing\n• Be more explicit about desired outcomes or format\n\n📊 **Context Analysis:** Detected as '{detected_context}' context"
 
-    final_verdict = (
-        "✅ No major Responsible AI violations detected." if not detailed_feedback else "\n\n".join(detailed_feedback)
-    )
+    # Enhanced final verdict with detection summary
+    if not detailed_feedback:
+        final_verdict = f"✅ **NO MAJOR VIOLATIONS DETECTED**\n\n🎯 **Context:** {detected_context.title()}\n🧠 **Analysis:** Smart aggregation with weighted scoring\n📊 **Confidence:** High (enhanced detection system)"
+    else:
+        detection_summary = f"\n\n🔍 **Detection Summary:**\n• Context: {detected_context.title()}\n• Violations found: {len(detailed_feedback)}\n• Analysis method: Smart aggregation + weighted scoring\n• Thresholds: Dynamically adjusted"
+        final_verdict = "\n\n".join(detailed_feedback) + detection_summary
 
     # Return scores dict and suggestion text instead of top label
     return group_scores, final_verdict, suggestions_text

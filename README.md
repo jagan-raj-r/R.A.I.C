@@ -1,10 +1,14 @@
 ---
-title: RAIC – Responsible AI Coach
-emoji: "🤖"
+title: R.A.I.C
+emoji: 🤖
+colorFrom: indigo
+colorTo: red
 sdk: gradio
+sdk_version: 5.42.0
 app_file: app.py
-python_version: 3.10
+pinned: false
 license: apache-2.0
+short_description: RAIC – Responsible AI Coach
 ---
 
 ## RAIC – Responsible AI Coach
