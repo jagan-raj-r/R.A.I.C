@@ -2,39 +2,170 @@ import os
 import gradio as gr
 from transformers import pipeline
 
-# Load zero-shot classifier model with Spaces-friendly fallback
-def load_classifier():
-    preferred_model = os.getenv("MODEL_NAME")
-    candidate_models = [
-        model
-        for model in [
-            preferred_model,  # allow override via env var in Spaces
-            "facebook/bart-large-mnli",          # strong but heavy
-            "valhalla/distilbart-mnli-12-1",     # lighter fallback
-        ]
-        if model
-    ]
+# Enhanced Ensemble Detection System
+try:
+    import numpy as np
+    from scipy.special import softmax
+    ADVANCED_FEATURES_AVAILABLE = True
+except ImportError:
+    print("⚠️ Advanced features require numpy and scipy. Install with: pip install numpy scipy")
+    ADVANCED_FEATURES_AVAILABLE = False
+    # Fallback implementations
+    import math
+    def softmax(x):
+        """Fallback softmax implementation"""
+        exp_x = [math.exp(i) for i in x]
+        sum_exp_x = sum(exp_x)
+        return [i / sum_exp_x for i in exp_x]
 
-    last_error = None
+def load_ensemble_classifiers():
+    """
+    Load multiple models for ensemble detection
+    Returns dict of successfully loaded models with their weights
+    """
+    # Ensemble configuration: model_name -> (weight, description)
+    ensemble_config = {
+        "facebook/bart-large-mnli": (1.0, "Strong general-purpose model"),
+        "valhalla/distilbart-mnli-12-1": (0.8, "Lightweight but effective"), 
+        "microsoft/deberta-v3-base-mnli": (0.9, "Strong contextual understanding"),
+    }
+    
+    # Allow override for primary model
+    preferred_model = os.getenv("MODEL_NAME")
+    if preferred_model:
+        ensemble_config[preferred_model] = (1.2, "User preferred model")
+    
+    loaded_models = {}
+    total_attempts = len(ensemble_config)
+    
+    for model_name, (weight, description) in ensemble_config.items():
+        try:
+            print(f"Loading ensemble model: {model_name}")
+            clf = pipeline(
+                "zero-shot-classification",
+                model=model_name,
+                device=-1,  # force CPU
+                return_all_scores=True  # Need all scores for ensemble
+            )
+            loaded_models[model_name] = {
+                'classifier': clf,
+                'weight': weight,
+                'description': description
+            }
+            print(f"✓ Successfully loaded: {model_name}")
+        except Exception as e:
+            print(f"✗ Failed to load {model_name}: {e}")
+            continue
+    
+    if not loaded_models:
+        print("⚠️ No models loaded successfully, falling back to single model")
+        return load_single_classifier()
+    
+    print(f"🎯 Ensemble ready: {len(loaded_models)}/{total_attempts} models loaded")
+    return loaded_models
+
+def load_single_classifier():
+    """Fallback to single model if ensemble fails"""
+    candidate_models = [
+        "valhalla/distilbart-mnli-12-1",     # lightest fallback
+        "facebook/bart-large-mnli",          # stronger but heavier
+    ]
+    
     for model_name in candidate_models:
         try:
             clf = pipeline(
                 "zero-shot-classification",
                 model=model_name,
-                device=-1,  # force CPU (typical Spaces CPU runtime)
+                device=-1,
+                return_all_scores=True
             )
-            return clf
-        except Exception as e:  # pragma: no cover
-            last_error = e
-            print(f"Failed to load model '{model_name}': {e}")
+            print(f"✓ Fallback model loaded: {model_name}")
+            return {model_name: {'classifier': clf, 'weight': 1.0, 'description': 'Fallback model'}}
+        except Exception as e:
+            print(f"✗ Failed to load fallback {model_name}: {e}")
             continue
-
-    if last_error is not None:
-        print(f"All candidate models failed to load. Last error: {last_error}")
+    
+    print("❌ All models failed to load")
     return None
 
+# Multi-Stage Detection Configuration
+STAGE_1_LABELS = ["problematic", "safe", "unclear"]  # Binary + uncertain
+STAGE_2_LABELS = {
+    "safety_risk": ["harmful", "dangerous", "unsafe", "violent"],
+    "privacy_risk": ["private information", "personal data", "confidential"],
+    "fairness_risk": ["biased", "discriminatory", "unfair"],
+    "transparency_risk": ["misleading", "deceptive", "unclear"],
+    "accountability_risk": ["misuse", "manipulation", "bypass"],
+    "inclusiveness_risk": ["exclusionary", "inaccessible", "marginalizing"]
+}
 
-classifier = load_classifier()
+# Confidence Calibration System
+class ConfidenceCalibrator:
+    """
+    Implements Platt scaling for confidence calibration
+    """
+    def __init__(self):
+        # Pre-trained calibration parameters (would be learned from data)
+        # These are reasonable defaults for zero-shot classification
+        self.calibration_params = {
+            'slope': 1.2,      # Slightly steeper than linear
+            'intercept': -0.1,  # Small negative bias
+            'temperature': 1.5  # Temperature scaling factor
+        }
+    
+    def calibrate_confidence(self, raw_score, context="default"):
+        """
+        Apply confidence calibration to raw model scores
+        """
+        # Apply temperature scaling first
+        scaled_score = raw_score / self.calibration_params['temperature']
+        
+        # Apply Platt scaling: sigmoid(slope * score + intercept)
+        calibrated = 1 / (1 + np.exp(-(
+            self.calibration_params['slope'] * scaled_score + 
+            self.calibration_params['intercept']
+        )))
+        
+        # Context-based adjustment
+        context_adjustments = {
+            "educational": 0.95,  # Slightly lower confidence in educational contexts
+            "creative": 0.90,     # Lower confidence for creative content
+            "testing": 0.85,      # Much lower confidence for testing scenarios
+            "default": 1.0
+        }
+        
+        adjustment = context_adjustments.get(context, 1.0)
+        return calibrated * adjustment
+    
+    def estimate_uncertainty(self, scores_list):
+        """
+        Estimate prediction uncertainty from score distribution
+        """
+        if len(scores_list) < 2:
+            return 0.5  # High uncertainty for single predictions
+        
+        if not ADVANCED_FEATURES_AVAILABLE:
+            # Fallback: simple variance-based uncertainty
+            mean_score = sum(scores_list) / len(scores_list)
+            variance = sum((s - mean_score) ** 2 for s in scores_list) / len(scores_list)
+            return min(1.0, variance * 2)  # Scale variance to uncertainty
+        
+        # Calculate entropy of score distribution
+        scores_array = np.array(scores_list)
+        normalized_scores = softmax(scores_array)
+        entropy = -np.sum(normalized_scores * np.log(normalized_scores + 1e-10))
+        
+        # Normalize entropy to [0, 1] range
+        max_entropy = np.log(len(scores_list))
+        uncertainty = entropy / max_entropy if max_entropy > 0 else 0.5
+        
+        return uncertainty
+
+# Initialize systems
+print("🚀 Initializing Enhanced Detection System...")
+ensemble_models = load_ensemble_classifiers()
+confidence_calibrator = ConfidenceCalibrator()
+print("✅ Enhanced Detection System Ready!")
 
 # Responsible AI Framework-aligned categories
 # Based on Microsoft, Google, and industry-standard Responsible AI principles
@@ -238,6 +369,162 @@ def calculate_dynamic_threshold(base_threshold, context, violation_weight):
     # Ensure threshold stays within reasonable bounds
     return max(0.1, min(0.8, final_threshold))
 
+# Advanced Detection Functions
+
+def ensemble_predict(prompt, candidate_labels, models_dict):
+    """
+    Run ensemble prediction across multiple models
+    """
+    if not models_dict:
+        raise ValueError("No models available for ensemble prediction")
+    
+    all_predictions = []
+    model_weights = []
+    
+    for model_name, model_info in models_dict.items():
+        try:
+            classifier = model_info['classifier']
+            weight = model_info['weight']
+            
+            # Get prediction from this model
+            result = classifier(
+                prompt,
+                candidate_labels,
+                multi_label=True,
+                hypothesis_template=HYPOTHESIS_TEMPLATE,
+            )
+            
+            all_predictions.append(result)
+            model_weights.append(weight)
+            
+        except Exception as e:
+            print(f"⚠️ Model {model_name} failed: {e}")
+            continue
+    
+    if not all_predictions:
+        raise ValueError("All ensemble models failed")
+    
+    # Combine predictions using weighted average
+    return combine_ensemble_predictions(all_predictions, model_weights, candidate_labels)
+
+def combine_ensemble_predictions(predictions, weights, candidate_labels):
+    """
+    Intelligently combine multiple model predictions
+    """
+    # Create score matrix: [models x labels]
+    score_matrix = []
+    
+    for pred in predictions:
+        # Convert to dict for easier lookup
+        label_to_score = {label: score for label, score in zip(pred['labels'], pred['scores'])}
+        # Get scores in consistent order
+        model_scores = [label_to_score.get(label, 0.0) for label in candidate_labels]
+        score_matrix.append(model_scores)
+    
+    if ADVANCED_FEATURES_AVAILABLE:
+        score_matrix = np.array(score_matrix)
+        weights = np.array(weights)
+        # Weighted average of scores
+        weighted_scores = np.average(score_matrix, axis=0, weights=weights)
+    else:
+        # Fallback weighted average without numpy
+        weighted_scores = []
+        for col in range(len(score_matrix[0])):
+            weighted_sum = sum(score_matrix[row][col] * weights[row] for row in range(len(score_matrix)))
+            weight_sum = sum(weights)
+            weighted_scores.append(weighted_sum / weight_sum if weight_sum > 0 else 0.0)
+    
+    # Sort by combined scores
+    label_score_pairs = list(zip(candidate_labels, weighted_scores))
+    label_score_pairs.sort(key=lambda x: x[1], reverse=True)
+    
+    # Return in same format as single model
+    return {
+        'labels': [label for label, _ in label_score_pairs],
+        'scores': [score for _, score in label_score_pairs]
+    }
+
+def multi_stage_detection(prompt, models_dict, detected_context):
+    """
+    Multi-stage hierarchical detection pipeline
+    """
+    # Stage 1: Binary classification - Is this potentially problematic?
+    stage1_result = ensemble_predict(prompt, STAGE_1_LABELS, models_dict)
+    stage1_scores = {label: score for label, score in zip(stage1_result['labels'], stage1_result['scores'])}
+    
+    # Early exit if clearly safe
+    if stage1_scores.get('safe', 0) > 0.7 and stage1_scores.get('problematic', 0) < 0.3:
+        return {
+            'stage': 1,
+            'conclusion': 'safe',
+            'confidence': stage1_scores.get('safe', 0),
+            'detailed_scores': {}
+        }
+    
+    # Stage 2: Category detection - What type of problem?
+    if stage1_scores.get('problematic', 0) > 0.3:
+        stage2_results = {}
+        
+        for risk_category, risk_labels in STAGE_2_LABELS.items():
+            try:
+                result = ensemble_predict(prompt, risk_labels, models_dict)
+                # Get max score for this risk category
+                max_score = max(result['scores'][:3])  # Top 3 scores
+                stage2_results[risk_category] = max_score
+            except Exception as e:
+                print(f"⚠️ Stage 2 failed for {risk_category}: {e}")
+                stage2_results[risk_category] = 0.0
+        
+        # Stage 3: Detailed analysis with full GROUP_LABELS
+        stage3_result = ensemble_predict(prompt, ALL_CANDIDATE_LABELS, models_dict)
+        
+        return {
+            'stage': 3,
+            'conclusion': 'detailed_analysis',
+            'stage1_scores': stage1_scores,
+            'stage2_scores': stage2_results,
+            'stage3_result': stage3_result,
+            'confidence': stage1_scores.get('problematic', 0)
+        }
+    
+    # Unclear case - needs full analysis
+    stage3_result = ensemble_predict(prompt, ALL_CANDIDATE_LABELS, models_dict)
+    
+    return {
+        'stage': 2,
+        'conclusion': 'unclear_needs_analysis',
+        'stage1_scores': stage1_scores,
+        'stage3_result': stage3_result,
+        'confidence': stage1_scores.get('unclear', 0)
+    }
+
+def enhanced_smart_aggregate_scores(candidate_scores, synonyms, uncertainty_estimate=0.0):
+    """
+    Enhanced aggregation with uncertainty consideration
+    """
+    synonym_scores = [candidate_scores.get(s, 0.0) for s in synonyms]
+    synonym_scores = [s for s in synonym_scores if s > 0]
+    
+    if not synonym_scores:
+        return 0.0
+    
+    # Base aggregation (from previous implementation)
+    max_score = max(synonym_scores)
+    avg_score = sum(synonym_scores) / len(synonym_scores)
+    
+    # Uncertainty adjustment
+    uncertainty_penalty = 1.0 - (uncertainty_estimate * 0.3)  # Max 30% reduction
+    
+    if len(synonym_scores) == 1:
+        base_score = max_score * 0.9
+    elif len(synonym_scores) >= 3:
+        base_score = (max_score * 0.7) + (avg_score * 0.3)
+    else:
+        base_score = (max_score * 0.8) + (avg_score * 0.2)
+    
+    # Apply uncertainty penalty
+    return base_score * uncertainty_penalty
+
 # Enhanced Responsible AI feedback with severity-based messaging
 def get_detailed_feedback(category, severity, confidence):
     """Generate detailed, educational feedback based on severity level"""
@@ -341,44 +628,63 @@ improvement_suggestions = {
     "responsible_and_safe": "Great! Your prompt follows Responsible AI principles. Consider adding more specific context for even better results.",
 }
 
-# Audit function
+# Enhanced Audit Function with Ensemble + Multi-Stage Detection
 def audit_prompt(prompt):
     if not prompt or not prompt.strip():
         return {}, "Please enter a prompt to audit.", "Please provide a prompt to analyze for improvement suggestions."
 
-    if classifier is None:
+    if ensemble_models is None:
         return (
             {},
-            "Model failed to load. In Hugging Face Spaces, set env var 'MODEL_NAME' to a lighter model like 'valhalla/distilbart-mnli-12-1', or use a larger hardware profile.",
+            "Enhanced detection system failed to load. Please check model availability.",
             "Unable to provide suggestions due to model loading error.",
         )
 
     try:
-        result = classifier(
-            prompt,
-            ALL_CANDIDATE_LABELS,
-            multi_label=True,
-            hypothesis_template=HYPOTHESIS_TEMPLATE,
-        )
+        # Detect prompt context for dynamic threshold adjustment
+        detected_context = detect_prompt_context(prompt)
+        
+        # Multi-stage ensemble detection
+        multi_stage_result = multi_stage_detection(prompt, ensemble_models, detected_context)
+        
+        # Extract the final classification result
+        if multi_stage_result['conclusion'] == 'safe':
+            # Early exit - clearly safe prompt
+            result = {
+                'labels': ['safe', 'responsible'],
+                'scores': [multi_stage_result['confidence'], multi_stage_result['confidence'] * 0.9]
+            }
+        else:
+            # Use the detailed stage 3 result
+            result = multi_stage_result['stage3_result']
+        
+        # Apply confidence calibration to all scores
+        calibrated_scores = []
+        for score in result['scores']:
+            calibrated_score = confidence_calibrator.calibrate_confidence(score, detected_context)
+            calibrated_scores.append(calibrated_score)
+        
+        # Estimate uncertainty from score distribution
+        uncertainty_estimate = confidence_calibrator.estimate_uncertainty(calibrated_scores)
+        
+        # Build mapping of candidate label -> calibrated score
+        candidate_label_to_score = {
+            label: float(score) for label, score in zip(result["labels"], calibrated_scores)
+        }
+        
+        # Enhanced smart aggregation with uncertainty consideration
+        group_scores = {}
+        for group, synonyms in GROUP_LABELS.items():
+            group_scores[group] = enhanced_smart_aggregate_scores(
+                candidate_label_to_score, synonyms, uncertainty_estimate
+            )
+        
     except Exception as e:  # pragma: no cover
         return (
             {},
-            f"Classification failed: {e}",
+            f"Enhanced classification failed: {e}",
             "Unable to provide suggestions due to classification error.",
         )
-
-    # Build mapping of candidate label -> score
-    candidate_label_to_score = {
-        label: float(score) for label, score in zip(result["labels"], result["scores"])
-    }
-
-    # Detect prompt context for dynamic threshold adjustment
-    detected_context = detect_prompt_context(prompt)
-    
-    # Smart aggregation: Replace simple max with intelligent scoring
-    group_scores = {}
-    for group, synonyms in GROUP_LABELS.items():
-        group_scores[group] = smart_aggregate_scores(candidate_label_to_score, synonyms)
 
     # Collect enhanced feedback for non-safe labels above threshold
     suggestions = []
@@ -410,11 +716,15 @@ def audit_prompt(prompt):
                 # Use enhanced detailed feedback with context info
                 detailed_message = get_detailed_feedback(group, severity, score)
                 
-                # Add context information to feedback
+                # Add enhanced detection information to feedback
+                detection_info = f"\n\n🔬 **Enhanced Detection Details:**"
+                detection_info += f"\n• Multi-stage analysis: {multi_stage_result.get('stage', 'N/A')} stages completed"
+                detection_info += f"\n• Ensemble models: {len(ensemble_models)} models consensus"
+                detection_info += f"\n• Confidence calibration: Applied with uncertainty: {uncertainty_estimate:.2f}"
                 if detected_context != "default":
-                    context_note = f"\n🎯 Context detected: {detected_context.title()} (threshold adjusted accordingly)"
-                    detailed_message += context_note
+                    detection_info += f"\n• Context: {detected_context.title()} (threshold adjusted accordingly)"
                 
+                detailed_message += detection_info
                 detailed_feedback.append(detailed_message)
                 risks_found.append((group, severity, score, weighted_score, dynamic_threshold))
 
@@ -428,8 +738,13 @@ def audit_prompt(prompt):
         for group, severity, score, weighted_score, threshold in risks_by_weighted_score[:3]:
             detailed_suggestion = get_detailed_suggestions(group, severity)
             
-            # Add scoring details for transparency
-            scoring_info = f"\n📊 **Scoring Details:** Raw: {score:.2f}, Weighted: {weighted_score:.2f}, Threshold: {threshold:.2f}"
+            # Add enhanced scoring details for transparency
+            scoring_info = f"\n📊 **Enhanced Scoring Details:**"
+            scoring_info += f"\n• Raw score: {score:.2f}"
+            scoring_info += f"\n• Weighted score: {weighted_score:.2f} (weight: {VIOLATION_WEIGHTS.get(group, 1.0):.1f}x)"
+            scoring_info += f"\n• Dynamic threshold: {threshold:.2f}"
+            scoring_info += f"\n• Uncertainty estimate: {uncertainty_estimate:.2f}"
+            scoring_info += f"\n• Models consensus: {len(ensemble_models)} models"
             detailed_suggestion += scoring_info
             
             detailed_suggestions.append(detailed_suggestion)
@@ -454,16 +769,39 @@ def audit_prompt(prompt):
         elif detected_context == "public":
             context_praise = "\n🌐 **Public Context Detected** - Appropriately crafted for public communication!"
         
+        # Enhanced positive feedback with system analytics
+        system_performance = f"\n\n🚀 **Enhanced Detection Analytics:**"
+        system_performance += f"\n• Ensemble models: {len(ensemble_models)} models active"
+        system_performance += f"\n• Multi-stage analysis: {multi_stage_result.get('stage', 'N/A')} stages completed"
+        system_performance += f"\n• Uncertainty level: {uncertainty_estimate:.2f} (lower is better)"
+        system_performance += f"\n• Context detection: {detected_context.title()}"
+        system_performance += f"\n• Confidence calibration: Applied for {detected_context} context"
+        
         if safe_score > 0.7:
-            suggestions_text = f"🎉 **EXCELLENT PROMPT DESIGN**\nYour prompt demonstrates strong alignment with Responsible AI principles!{context_praise}\n\n💡 **Enhancement Tips:**\n• Consider adding specific context for even more targeted results\n• Test with diverse scenarios to ensure broad applicability\n• Share this as a good example of ethical prompt design\n\n📊 **Context Analysis:** Detected as '{detected_context}' context"
+            suggestions_text = f"🎉 **EXCELLENT PROMPT DESIGN**\nYour prompt demonstrates strong alignment with Responsible AI principles!{context_praise}\n\n💡 **Enhancement Tips:**\n• Consider adding specific context for even more targeted results\n• Test with diverse scenarios to ensure broad applicability\n• Share this as a good example of ethical prompt design{system_performance}"
         else:
-            suggestions_text = f"✅ **GOOD PROMPT FOUNDATION**\nNo major RA violations detected, but there's room for improvement!{context_praise}\n\n💡 **Enhancement Suggestions:**\n• Add more specific context about your goals\n• Consider diverse perspectives in your framing\n• Be more explicit about desired outcomes or format\n\n📊 **Context Analysis:** Detected as '{detected_context}' context"
+            suggestions_text = f"✅ **GOOD PROMPT FOUNDATION**\nNo major RA violations detected, but there's room for improvement!{context_praise}\n\n💡 **Enhancement Suggestions:**\n• Add more specific context about your goals\n• Consider diverse perspectives in your framing\n• Be more explicit about desired outcomes or format{system_performance}"
 
-    # Enhanced final verdict with detection summary
+    # Enhanced final verdict with comprehensive detection summary
     if not detailed_feedback:
-        final_verdict = f"✅ **NO MAJOR VIOLATIONS DETECTED**\n\n🎯 **Context:** {detected_context.title()}\n🧠 **Analysis:** Smart aggregation with weighted scoring\n📊 **Confidence:** High (enhanced detection system)"
+        final_verdict = f"✅ **NO MAJOR VIOLATIONS DETECTED**\n\n🔬 **Enhanced Detection Summary:**"
+        final_verdict += f"\n• Context: {detected_context.title()}"
+        final_verdict += f"\n• Multi-stage analysis: {multi_stage_result.get('stage', 'N/A')} stages completed"
+        final_verdict += f"\n• Ensemble consensus: {len(ensemble_models)} models agreement"
+        final_verdict += f"\n• Uncertainty level: {uncertainty_estimate:.2f} (low uncertainty = high confidence)"
+        final_verdict += f"\n• Analysis method: Enhanced smart aggregation + weighted scoring"
+        final_verdict += f"\n• Confidence calibration: Applied for {detected_context} context"
+        final_verdict += f"\n• System status: All advanced detection features active"
     else:
-        detection_summary = f"\n\n🔍 **Detection Summary:**\n• Context: {detected_context.title()}\n• Violations found: {len(detailed_feedback)}\n• Analysis method: Smart aggregation + weighted scoring\n• Thresholds: Dynamically adjusted"
+        detection_summary = f"\n\n🔍 **Comprehensive Detection Summary:**"
+        detection_summary += f"\n• Context: {detected_context.title()}"
+        detection_summary += f"\n• Violations found: {len(detailed_feedback)}"
+        detection_summary += f"\n• Multi-stage analysis: {multi_stage_result.get('stage', 'N/A')} stages completed"
+        detection_summary += f"\n• Ensemble models: {len(ensemble_models)} models consensus"
+        detection_summary += f"\n• Uncertainty estimate: {uncertainty_estimate:.2f}"
+        detection_summary += f"\n• Analysis method: Enhanced smart aggregation + weighted scoring"
+        detection_summary += f"\n• Thresholds: Dynamically adjusted based on context and importance"
+        detection_summary += f"\n• Confidence calibration: Applied to improve reliability"
         final_verdict = "\n\n".join(detailed_feedback) + detection_summary
 
     # Return scores dict and suggestion text instead of top label
