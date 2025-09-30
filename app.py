@@ -2,6 +2,11 @@ import os
 import re
 import gradio as gr
 from transformers import pipeline
+from content import LEARN_CONTENT
+
+# R.A.I.C Version Information
+VERSION = "1.0.0"
+RELEASE_DATE = "2024"
 
 # Initialize simple classifier
 print("🚀 Initializing R.A.I.C Detection System...")
@@ -174,21 +179,31 @@ def audit_prompt(prompt):
         return {}, f"Error analyzing prompt: {str(e)}"
 
 def build_ui():
-    """Simple, clean UI"""
+    """UI with dedicated tabs for auditing and learning"""
     with gr.Blocks() as demo:
-        gr.Markdown("# 🤖 R.A.I.C – Responsible AI Coach\nAudit prompts against key Responsible AI principles.")
+        gr.Markdown(f"# 🤖 R.A.I.C v{VERSION} – Responsible AI Coach")
+        gr.Markdown("**The Complete Educational Platform for Responsible AI Development**")
         
-        prompt_input = gr.Textbox(lines=3, placeholder="Enter your prompt here...", label="Prompt")
-        audit_btn = gr.Button("Run Audit", variant="primary")
-        
-        score_output = gr.Label(label="Detection Scores")
-        feedback = gr.Textbox(label="R.A.I.C Feedback", interactive=False, lines=4)
-        
-        audit_btn.click(
-            fn=audit_prompt,
-            inputs=prompt_input, 
-            outputs=[score_output, feedback]
-        )
+        with gr.Tabs():
+            # Audit Tool Tab
+            with gr.Tab("🔍 Audit Tool"):
+                gr.Markdown("### Audit prompts against key Responsible AI principles")
+                
+                prompt_input = gr.Textbox(lines=3, placeholder="Enter your prompt here...", label="Prompt")
+                audit_btn = gr.Button("Run Audit", variant="primary")
+                
+                score_output = gr.Label(label="Detection Scores")
+                feedback = gr.Textbox(label="R.A.I.C Feedback", interactive=False, lines=4)
+                
+                audit_btn.click(
+                    fn=audit_prompt,
+                    inputs=prompt_input, 
+                    outputs=[score_output, feedback]
+                )
+            
+            # Learn Tab
+            with gr.Tab("📚 Learn"):
+                gr.Markdown(LEARN_CONTENT)
     
     return demo
 

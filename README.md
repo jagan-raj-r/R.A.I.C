@@ -15,16 +15,38 @@ short_description: RAIC – Responsible AI Coach
 
 A lightweight Gradio app that audits free‑text prompts against key Responsible AI categories using a zero‑shot classifier. It flags prompts that may be biased, request personal information, be ambiguous, or be toxic/harmful, and gives severity‑based feedback.
 
-### 🚀 **Live Demo**
-**Try it now:** [https://huggingface.co/spaces/jagan-raj/R.A.I.C](https://huggingface.co/spaces/jagan-raj/R.A.I.C)
+---
+<div align="center">
+
+**Star ⭐ this repository if you find it helpful!**
+
+Made with ❤️ for the Responsible AI community
+
+[🚀 Get Started](https://huggingface.co/spaces/jagan-raj/R.A.I.C)
+
+</div>
+---
 
 ### Features
 - **Smart Detection**: ML classification + keyword matching for obvious violations
 - **Proper Logic**: Highest scoring category wins (safe prompts stay approved!)
 - **Clear Feedback**: Direct risk levels (HIGH/MODERATE/LOW) with confidence scores
 - **6 Key Categories**: Comprehensive coverage of Responsible AI principles
-- **Simple & Fast**: Lightweight, reliable detection that actually works
-- **Clean UI**: "R.A.I.C Feedback" with easy-to-understand results
+- **Real-time Analysis**: Instant feedback on prompt ethics and safety
+
+### 📚 **World-Class Educational Platform**
+- **Comprehensive Curriculum**: 19,000+ words of expert-level content
+- **Real-World Case Studies**: Amazon, Microsoft, and other major incidents
+- **Industry Frameworks**: Microsoft, Google, IBM Responsible AI standards
+- **Practical Implementation**: Step-by-step guides and checklists
+- **OWASP LLM Security**: Coverage analysis of Top 10 LLM security risks
+- **Professional Resources**: Research papers, tools, and regulatory guidelines
+
+### 🎓 **Learning Experience**
+- **Interactive Tabs**: Separate Audit and Learn experiences
+- **Progressive Learning**: From basics to advanced implementation
+- **Actionable Content**: Checklists, examples, and best practices
+- **Enterprise-Ready**: Suitable for corporate training and university courses
 
 ### Categories
 - **Bias/Discrimination** - Unfair treatment based on race, gender, religion, etc.
