@@ -16,6 +16,7 @@ short_description: RAIC – Responsible AI Coach
 A lightweight Gradio app that audits free‑text prompts against key Responsible AI categories using a zero‑shot classifier. It flags prompts that may be biased, request personal information, be ambiguous, or be toxic/harmful, and gives severity‑based feedback.
 
 ---
+
 <div align="center">
 
 **Star ⭐ this repository if you find it helpful!**
@@ -25,6 +26,7 @@ Made with ❤️ for the Responsible AI community
 [🚀 Get Started](https://huggingface.co/spaces/jagan-raj/R.A.I.C)
 
 </div>
+
 ---
 
 ### Features
