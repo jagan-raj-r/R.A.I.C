@@ -1,13 +1,152 @@
 # Enhanced Educational Content for R.A.I.C Learn Tab
 
+HOW_IT_WORKS_CONTENT = """
+# How R.A.I.C Works - Technical Methodology
+
+Understanding how R.A.I.C evaluates your prompts helps you interpret the results and improve your AI interactions.
+
+### **Detection Method: Zero-Shot Classification**
+
+R.A.I.C uses **ML-based zero-shot classification** - a powerful technique that can evaluate text without needing specific training examples.
+
+**What This Means:**
+- No pre-defined rules or keyword lists
+- Uses semantic understanding of language
+- Can detect nuanced ethical issues
+- Adapts to context and meaning
+
+### **The Model Behind R.A.I.C**
+
+**Model:** `valhalla/distilbart-mnli-12-1`
+- **Type:** Zero-shot text classification
+- **Architecture:** Distilled BART (efficient transformer)
+- **Training:** Multi-genre Natural Language Inference
+- **Advantage:** Fast, accurate, runs on CPU
+
+### **How Evaluation Works: Step-by-Step**
+
+#### **Step 1: Prompt Input**
+You enter your prompt → R.A.I.C analyzes it
+
+#### **Step 2: Semantic Evaluation**
+Your prompt is evaluated against **70+ semantic labels** across **6 categories**:
+- Fairness & Bias Prevention (~15 labels)
+- Safety & Reliability (~14 labels)
+- Privacy & Security (~12 labels)
+- Inclusiveness & Accessibility (~11 labels)
+- Transparency & Explainability (~13 labels)
+- Accountability & Governance (~12 labels)
+- Plus positive "Responsible & Safe" indicators (~14 labels)
+
+#### **Step 3: Score Aggregation**
+- Each label gets a confidence score (0-100%)
+- Category scores = maximum score among related labels
+- This captures the strongest signal in each category
+
+#### **Step 4: Decision Making**
+- **Highest scoring category wins** the classification
+- **Threshold:** Violations flagged if score > 30%
+- **Confidence levels:**
+  - 🔴 High (>70%): Strong detection
+  - 🟡 Medium (50-70%): Moderate confidence
+  - 🟢 Low (<50%): Weak signal
+
+#### **Step 5: Hybrid Enhancement**
+Additional **keyword detection** for obvious violations:
+- Explicit bias terms → Boost fairness violation score
+- Direct harmful content → Boost safety violation score
+
+### **Understanding Your Results**
+
+#### **What You See:**
+
+**📊 All Category Scores**
+- Every category's score displayed with visual bars
+- Sorted from highest to lowest
+- Helps you see close calls and runner-up issues
+
+**🎯 Confidence Level**
+- Tells you how certain the system is
+- Higher confidence = more reliable detection
+- Lower confidence = might need human review
+
+**🔍 Methodology Details**
+- Transparent about how decision was made
+- Shows which model and process was used
+- Helps you trust and understand the results
+
+**💡 Actionable Tips**
+- Links to relevant Learn content
+- Suggestions for improvement
+- Clear next steps
+
+### **Key Thresholds Explained**
+
+| Threshold | Meaning | Action |
+|-----------|---------|---------|
+| **>70%** | High Risk - Strong violation detected | Immediate review needed |
+| **55-70%** | Moderate Risk - Likely issue present | Review recommended |
+| **30-55%** | Low Risk - Potential concern | Consider reviewing |
+| **<30%** | Below Threshold - No violation | Approved |
+
+### **Why Safe Prompts Might Score Lower**
+
+You might notice that clearly safe prompts don't always score as high as expected on "Responsible & Safe." Here's why:
+
+**The Model is Conservative:**
+- Zero-shot models tend to be cautious with positive classifications
+- This is intentional - better to flag for review than miss issues
+- It's easier to confirm something is safe than to catch subtle violations
+
+**Multiple Dimensions:**
+- A prompt can be "safe" but still have room for improvement
+- Lower scores don't always mean problems
+- Check ALL category scores to get the full picture
+
+**Ongoing Calibration:**
+- We're continuously improving threshold settings
+- Your feedback helps us calibrate better
+- Future versions will have more accurate scoring
+
+### **Limitations & Transparency**
+
+**What R.A.I.C Does Well:**
+✅ Detects semantic patterns and meaning
+✅ Catches subtle bias and ethical issues
+✅ Works across many domains and contexts
+✅ Fast and efficient analysis
+
+**Current Limitations:**
+⚠️ May be overly conservative with safe content
+⚠️ Context understanding has limits
+⚠️ Confidence calibration needs improvement
+⚠️ Can't understand very complex scenarios
+
+**What This Means for You:**
+- Use R.A.I.C as a helpful assistant, not final judge
+- High confidence flags deserve attention
+- Low confidence results need human review
+- Combine with your own ethical judgment
+
+### **Continuous Improvement**
+
+R.A.I.C is evolving based on user feedback:
+- Better threshold calibration
+- Improved confidence scoring
+- More accurate safe prompt detection
+- Enhanced explanation capabilities
+
+**Your feedback matters!** Report unexpected results to help us improve.
+"""
+
 LEARN_CONTENT = """
-# 📚 Master Responsible AI - Complete Learning Guide
+# Master Responsible AI - Complete Learning Guide
 
 Welcome to the most comprehensive guide to Responsible AI principles! This platform will take you from basics to advanced implementation of ethical AI systems.
 
 ---
 
-## 🎯 Course Overview
+## Course Overview
 
 ### What You'll Master:
 - **Deep understanding** of all 6 Responsible AI principles
@@ -25,7 +164,7 @@ Welcome to the most comprehensive guide to Responsible AI principles! This platf
 
 ---
 
-## ⚖️ Module 1: Fairness & Bias Prevention (Deep Dive)
+## Module 1: Fairness & Bias Prevention (Deep Dive)
 
 ### Understanding AI Bias
 **AI bias** occurs when algorithms systematically favor or discriminate against certain individuals or groups based on characteristics like race, gender, age, religion, or other attributes.
@@ -37,7 +176,7 @@ Welcome to the most comprehensive guide to Responsible AI principles! This platf
 4. **Aggregation Bias** - Assuming one model works for all subgroups
 5. **Confirmation Bias** - Seeking data that confirms existing beliefs
 
-### 🏢 Real-World Case Study: Amazon's Biased Hiring Algorithm (2018)
+### Real-World Case Study: Amazon's Biased Hiring Algorithm (2018)
 **What Happened**: Amazon developed an AI tool to rank job candidates, but it showed bias against women, downgrading resumes with words like "women's" (e.g., "women's chess club captain").
 
 **Root Cause**: Training data from 10 years of hiring decisions reflected male dominance in tech industry.
@@ -99,7 +238,7 @@ Welcome to the most comprehensive guide to Responsible AI principles! This platf
 3. **Assurance Challenges** - Difficulty verifying AI system behavior
 4. **Misuse Potential** - AI capabilities used for harmful purposes
 
-### 🏢 Real-World Case Study: Microsoft Tay Chatbot (2016)
+### Real-World Case Study: Microsoft Tay Chatbot (2016)
 **What Happened**: Microsoft's AI chatbot Tay became racist and offensive within 24 hours of deployment on Twitter.
 
 **Technical Issues**:
@@ -155,7 +294,7 @@ Welcome to the most comprehensive guide to Responsible AI principles! This platf
 
 ---
 
-## 🔒 Module 3: Privacy & Security (Deep Dive)
+## Module 3: Privacy & Security (Deep Dive)
 
 ### Privacy in AI Systems
 **AI Privacy** protects individuals' personal information and maintains appropriate boundaries around data collection, use, and sharing.
@@ -201,7 +340,7 @@ Welcome to the most comprehensive guide to Responsible AI principles! This platf
 
 ---
 
-## 🤝 Module 4: Inclusiveness & Accessibility (Deep Dive)
+## Module 4: Inclusiveness & Accessibility (Deep Dive)
 
 ### Designing Inclusive AI
 **Inclusive AI** ensures that AI systems are accessible, usable, and beneficial for people of all backgrounds, abilities, and circumstances.
@@ -250,7 +389,7 @@ Welcome to the most comprehensive guide to Responsible AI principles! This platf
 
 ---
 
-## 🔍 Module 5: Transparency & Explainability (Deep Dive)
+## Module 5: Transparency & Explainability (Deep Dive)
 
 ### Making AI Understandable
 **AI Transparency** ensures that AI systems are understandable, explainable, and their decision-making processes can be inspected and validated.
@@ -302,7 +441,7 @@ Welcome to the most comprehensive guide to Responsible AI principles! This platf
 
 ---
 
-## ⚠️ Module 6: Accountability & Governance (Deep Dive)
+## Module 6: Accountability & Governance (Deep Dive)
 
 ### AI Governance Frameworks
 **AI Governance** establishes clear accountability, oversight, and responsibility for AI systems throughout their lifecycle.
@@ -374,7 +513,7 @@ Your R.A.I.C platform addresses several critical OWASP LLM security risks:
 
 ---
 
-## 🎯 Practical Implementation Guide
+## Practical Implementation Guide
 
 ### Phase 1: Foundation (Weeks 1-4)
 1. **Establish governance structure**
@@ -476,7 +615,7 @@ Your R.A.I.C platform addresses several critical OWASP LLM security risks:
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 ### Industry Reports
 - **"The State of AI Ethics"** by Montreal AI Ethics Institute
@@ -502,23 +641,23 @@ Your R.A.I.C platform addresses several critical OWASP LLM security risks:
 
 ---
 
-## 🌟 Next Steps: Your Responsible AI Journey
+## Next Steps: Your Responsible AI Journey
 
 **Congratulations!** You now have comprehensive knowledge of Responsible AI principles. Here's how to continue your journey:
 
-### **📊 Immediate Actions:**
+### **Immediate Actions:**
 1. **Test the Audit Tool** with various prompts to see principles in action
 2. **Review your existing AI projects** using the checklists provided
 3. **Share this knowledge** with your team and organization
 4. **Start small** - pick one principle to implement first
 
-### **🕰️ Ongoing Development:**
+### **Ongoing Development:**
 1. **Stay updated** on evolving best practices and regulations
 2. **Join communities** - AI ethics groups, responsible AI forums
 3. **Continuous learning** - attend conferences, read research papers
 4. **Contribute back** - share lessons learned, contribute to open source
 
-### **🏆 Remember:**
+### **Remember:**
 **Responsible AI is not a destination but a journey of continuous improvement and learning.**
 
 Every AI system you build more ethically makes the world a little bit better. Your commitment to responsible AI principles helps ensure that artificial intelligence benefits everyone, not just a few.

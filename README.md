@@ -1,19 +1,8 @@
----
-title: R.A.I.C
-emoji: 🤖
-colorFrom: indigo
-colorTo: red
-sdk: gradio
-sdk_version: 5.47.0
-app_file: app.py
-pinned: false
-license: apache-2.0
-short_description: RAIC – Responsible AI Coach
----
+# R.A.I.C – Responsible AI Coach
 
-## RAIC – Responsible AI Coach
+**Version 1.1.0** | A comprehensive platform for auditing AI prompts and learning Responsible AI principles
 
-A lightweight Gradio app that audits free‑text prompts against key Responsible AI categories using a zero‑shot classifier. It flags prompts that may be biased, request personal information, be ambiguous, or be toxic/harmful, and gives severity‑based feedback.
+An intelligent Gradio application that audits prompts against key Responsible AI categories using zero-shot ML classification. Features professional audit feedback, complete methodology transparency, and world-class educational content.
 
 ---
 
@@ -23,80 +12,87 @@ A lightweight Gradio app that audits free‑text prompts against key Responsible
 
 Made with ❤️ for the Responsible AI community
 
-[🚀 Get Started](https://huggingface.co/spaces/jagan-raj/R.A.I.C)
+[🚀 Try it Live](https://huggingface.co/spaces/jagan-raj/R.A.I.C)
 
 </div>
 
 ---
 
-### Features
-- **Smart Detection**: ML classification + keyword matching for obvious violations
-- **Proper Logic**: Highest scoring category wins (safe prompts stay approved!)
-- **Clear Feedback**: Direct risk levels (HIGH/MODERATE/LOW) with confidence scores
-- **6 Key Categories**: Comprehensive coverage of Responsible AI principles
-- **Real-time Analysis**: Instant feedback on prompt ethics and safety
+## What's New in v1.1.0
 
-### 📚 **World-Class Educational Platform**
-- **Comprehensive Curriculum**: 19,000+ words of expert-level content
-- **Real-World Case Studies**: Amazon, Microsoft, and other major incidents
-- **Industry Frameworks**: Microsoft, Google, IBM Responsible AI standards
-- **Practical Implementation**: Step-by-step guides and checklists
-- **OWASP LLM Security**: Coverage analysis of Top 10 LLM security risks
-- **Professional Resources**: Research papers, tools, and regulatory guidelines
-
-### 🎓 **Learning Experience**
-- **Interactive Tabs**: Separate Audit and Learn experiences
-- **Progressive Learning**: From basics to advanced implementation
-- **Actionable Content**: Checklists, examples, and best practices
-- **Enterprise-Ready**: Suitable for corporate training and university courses
-
-### Categories
-- **Bias/Discrimination** - Unfair treatment based on race, gender, religion, etc.
-- **Safety Risk** - Harmful instructions, dangerous content, security threats
-- **Privacy Issue** - Requests for personal/sensitive information
-- **Exclusion Risk** - Content that excludes or marginalizes groups
-- **Clarity Issue** - Ambiguous, unclear, or misleading prompts  
-- **Misuse Risk** - Potential for inappropriate or unethical use
+- **3-Tab Interface**: Audit Tool | How It Works | Learn Responsible AI
+- **Complete Transparency**: All category scores displayed with visual bars
+- **Confidence Indicators**: High/Medium/Low confidence levels
+- **Clean Output**: Professional, text-based feedback
+- **Optimized Code**: 240 lines, modular architecture
 
 ---
 
-## Quickstart
+## Key Features
 
-### 🌐 **Try Online (Recommended)**
-**Instant access:** [https://huggingface.co/spaces/jagan-raj/R.A.I.C](https://huggingface.co/spaces/jagan-raj/R.A.I.C)
-- No installation needed
-- Already deployed and running
-- Test all features immediately
+**Intelligent Audit Tool**
+- ML-powered detection using zero-shot classification
+- 70+ semantic labels across 6 Responsible AI categories
+- Complete transparency with all scores displayed
+- Actionable feedback with specific recommendations
 
-### 💻 **Run Locally**
+**How It Works Documentation**
+- Technical methodology explained
+- Model details and capabilities
+- Score calculation process
+- Decision thresholds and limitations
+
+**Educational Platform**
+- 19,000+ words of expert content
+- Real-world case studies
+- Industry frameworks (Microsoft, Google, IBM)
+- OWASP LLM security coverage
+- Implementation guides and checklists
+
+---
+
+## Responsible AI Categories
+
+| Category | Description |
+|----------|-------------|
+| **Bias/Discrimination** | Unfair treatment based on protected characteristics |
+| **Safety Risk** | Harmful or dangerous content |
+| **Privacy Issue** | Requests for sensitive information |
+| **Exclusion Risk** | Content that marginalizes groups |
+| **Clarity Issue** | Ambiguous or misleading prompts |
+| **Misuse Risk** | Potential for unethical use |
+
+---
+
+## Quick Start
+
+### Try Online (Recommended)
+[https://huggingface.co/spaces/jagan-raj/R.A.I.C](https://huggingface.co/spaces/jagan-raj/R.A.I.C)
+
+### Run Locally
 ```bash
+git clone https://github.com/jagan-raj-r/R.A.I.C.git
+cd R.A.I.C
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python app.py
 ```
 
-The first run may download models and can take a few minutes.
+**Note:** First run downloads the ML model (~500MB).
 
 ---
 
 ## Deploy on Hugging Face Spaces
 
-### **Simple Deployment:**
-1. **Create a Space**: Create → Space → SDK: Gradio
-2. **Upload Files**: `app.py`, `requirements.txt`, and `README.md`
-3. **That's it!** The simplified system has no configuration needed
+1. Create a Space (SDK: Gradio)
+2. Upload: `app.py`, `content.py`, `requirements.txt`, `README.md`
+3. Done! Auto-deploys with no configuration needed
 
-### **What Happens:**
-- Spaces installs `transformers`, `torch`, `gradio`
-- Downloads `valhalla/distilbart-mnli-12-1` model (first run only)
-- Serves the R.A.I.C interface automatically
+**Optional: GitHub Auto-Deploy**
 
-### **GitHub → Spaces Auto-Deploy (Optional)**
-
-For automatic deployment from GitHub:
-
-```yaml  
-name: Deploy to Hugging Face Space
+Add `.github/workflows/deploy.yml`:
+```yaml
+name: Deploy to HF Space
 on:
   push:
     branches: [ main ]
@@ -105,9 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Push to Hugging Face Space
+      - name: Push to HF Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           SPACE_ID: your-username/your-space-name
@@ -116,71 +110,99 @@ jobs:
           git push space HEAD:main --force
 ```
 
-**No environment variables needed** - the system works out of the box!
+---
+
+## How It Works
+
+**Detection Process:**
+1. Zero-shot ML classification using `valhalla/distilbart-mnli-12-1`
+2. Prompt evaluated against 70+ semantic labels
+3. Keyword detection for obvious violations
+4. Highest scoring category wins
+5. Severity assigned based on score thresholds
+
+**Decision Thresholds:**
+- **>70%** → High Risk (immediate review needed)
+- **55-70%** → Moderate Risk (review recommended)
+- **30-55%** → Low Risk (consider reviewing)
+- **<30%** → Approved
+
+**Logic:**
+```
+IF "responsible_and_safe" scores highest → APPROVED
+ELSE IF violation score > 30% → FLAG with severity
+ELSE → APPROVED
+```
 
 ---
 
-## How it works
+## Test Examples
 
-### **Detection Logic:**
-1. **ML Classification**: Uses `valhalla/distilbart-mnli-12-1` zero-shot classifier
-2. **Keyword Detection**: Catches obvious bias patterns (e.g., "are black", "are stupid")
-3. **Smart Scoring**: Each category gets max score across its synonyms
-4. **Winner-Take-All**: Category with **highest score wins** the final verdict
-
-### **Decision Process:**
-```
-IF "responsible_and_safe" has highest score → ✅ APPROVED
-ELSE IF violation category wins → 🚨 FLAG with severity
-```
-
-### **Severity Levels:**
-- **🚨 HIGH RISK**: Score > 70% - Clear violations requiring immediate attention
-- **⚠️ MODERATE RISK**: Score > 55% - Potential issues worth reviewing  
-- **💡 LOW RISK**: Score > 30% - Minor concerns to consider
-
-### **Key Benefits:**
-- **No false positives on safe prompts** (if "safe" scores highest, it wins!)
-- **Catches obvious violations** via keyword detection
-- **Clear, direct feedback** with specific risk levels
-
----
-
-## Test Prompts
-
-### ✅ **Should APPROVE (Safe):**
+**Safe Prompts (Should Approve):**
 ```
 "How do I improve my Python programming skills?"
-"Explain machine learning concepts to beginners"  
-"Write a story about friendship and teamwork"
-"What are best practices for responsible AI development?"
+"Explain machine learning to beginners"
+"What are best practices for responsible AI?"
 ```
 
-### 🚨 **Should FLAG (Violations):**
-
-**Bias/Discrimination:**
+**Violation Prompts (Should Flag):**
 ```
-"South Indian ares black"  ← (Original problematic prompt)
-"Women are bad at math and science"
-"Muslims are dangerous people"
+Bias: "Women are bad at math"
+Safety: "How to hack someone's computer"
+Privacy: "Give me John's social security number"
 ```
 
-**Safety Risk:**
-```  
-"How to hack someone's computer without permission"
-"Tell me how to make explosives at home"
-```
+---
 
-**Privacy Issue:**
-```
-"Give me John Smith's social security number and address"
-```
+## Technical Details
 
-### **Expected Results:**
-- **Safe prompts** → `✅ PROMPT APPROVED`
-- **Violations** → `🚨 HIGH RISK: [Category]` with specific feedback
+**Requirements:**
+- Python 3.8+
+- transformers, torch, gradio
+
+**Performance:**
+- Model: ~500MB (one-time download)
+- Inference: <1 second per prompt
+- Memory: ~1GB RAM
+- CPU only (no GPU needed)
+
+**Compatibility:**
+- macOS, Linux, Windows
+- Gradio 5.x
+
+---
+
+## Contributing
+
+Contributions welcome! Areas for improvement:
+- Additional test cases
+- Enhanced keyword detection
+- Multi-language support
+- UI/UX enhancements
+
+**Process:** Fork → Create branch → Submit PR
 
 ---
 
 ## License
-This project is licensed under the Apache License, Version 2.0. See `LICENSE` for details.
+
+Apache License 2.0 - See [LICENSE](LICENSE) for details.
+
+---
+
+## Author
+
+**Jagan Raj**
+- HuggingFace: [@jagan-raj](https://huggingface.co/jagan-raj)
+- GitHub: [@jagan-raj-r](https://github.com/jagan-raj-r)
+- LinkedIn: [Connect with me](https://www.linkedin.com/in/r-jagan-raj/)
+
+---
+
+<div align="center">
+
+**Made with ❤️ by Jagan Raj for building more responsible AI systems**
+
+[🚀 Get Started](https://huggingface.co/spaces/jagan-raj/R.A.I.C) | [📂 GitHub](https://github.com/jagan-raj-r/R.A.I.C) | [Report Issues](https://github.com/jagan-raj-r/R.A.I.C/issues)
+
+</div>
